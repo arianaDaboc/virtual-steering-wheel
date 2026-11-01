@@ -1,0 +1,4 @@
+opencv-python>=4.8
+mediapipe>=0.10,<0.11
+numpy>=1.24
+vgamepad>=0.1.0
