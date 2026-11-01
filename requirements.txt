@@ -3,3 +3,5 @@ opencv-python>=4.8
 mediapipe==0.10.14   # pinned: keeps the legacy mp.solutions API
 numpy>=1.24,<2       # mediapipe 0.10.14 is built against NumPy 1.x
 vgamepad>=0.1.0
+pyyaml>=6.0
+pytest>=8.0

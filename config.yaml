@@ -1,0 +1,39 @@
+# All tunable constants for the virtual steering wheel.
+
+camera:
+  index: 0
+  width: 640
+  height: 480
+  buffer_size: 1            # 1 frame: stops DirectShow from queueing stale frames
+  max_read_failures: 30     # consecutive failed reads tolerated before quitting
+  mirror: true              # flip horizontally so moving right looks right
+
+tracking:
+  max_num_hands: 2
+  model_complexity: 0       # 0 = fastest MediaPipe model
+  min_detection_confidence: 0.6
+  min_tracking_confidence: 0.5
+  palm_landmark: 9          # base of the middle finger: stable palm center
+
+steering:
+  max_angle_deg: 45.0       # hand-line angle that maps to full lock
+  deadzone: 0.05            # fraction of full range ignored around center (0..1)
+  min_cutoff: 1.0           # One Euro: lower = smoother but laggier
+  beta: 0.02                # One Euro: higher = reacts faster to quick moves
+  d_cutoff: 1.0             # One Euro: cutoff for the speed estimate
+
+gestures:
+  max_extended_fingers_for_fist: 1
+
+controller:
+  auto_throttle: 0.6        # constant throttle while not braking (0..1)
+
+overlay:
+  window_name: "Virtual Steering Wheel"
+  wheel_radius: 60
+  wheel_bottom_margin: 90
+  wheel_rotation_scale: 2.0 # visual exaggeration of the wheel indicator
+  bar_height: 100
+  bar_width: 20
+  bar_margin: 20
+  fps_smoothing: 0.1        # weight of the newest frame in the FPS average
