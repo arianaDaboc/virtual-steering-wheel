@@ -16,17 +16,34 @@ tracking:
   palm_landmark: 9          # base of the middle finger: stable palm center
 
 steering:
-  max_angle_deg: 45.0       # hand-line angle that maps to full lock
+  max_angle_deg: 45.0       # full lock when no left/right range is calibrated
   deadzone: 0.05            # fraction of full range ignored around center (0..1)
   min_cutoff: 1.0           # One Euro: lower = smoother but laggier
   beta: 0.02                # One Euro: higher = reacts faster to quick moves
   d_cutoff: 1.0             # One Euro: cutoff for the speed estimate
 
+calibration:
+  file: calibration.json    # saved next to main.py; delete it to recalibrate on start
+  hold_seconds: 3.0         # how long each pose must be held
+  include_range: true       # also measure full left / full right lock
+  min_span_deg: 15.0        # a full turn smaller than this is rejected
+  max_spread_deg: 4.0       # std dev above this = hands drifted, step restarts
+  max_jump_deg: 8.0         # a frame this far from the pose counts as movement
+  motion_frames: 3          # that many in a row = real movement (fewer = glitch)
+
 gestures:
   max_extended_fingers_for_fist: 1
 
 controller:
+  output: auto              # auto (gamepad, then keyboard) | gamepad | keyboard | none
   auto_throttle: 0.6        # constant throttle while not braking (0..1)
+  keyboard:                 # used when output is keyboard, or auto without ViGEmBus
+    left: a
+    right: d
+    throttle: w
+    brake: s
+    steer_threshold: 0.25   # |steer| above this holds the left/right key
+    pedal_threshold: 0.5    # throttle/brake above this holds the key
 
 overlay:
   window_name: "Virtual Steering Wheel"
@@ -37,3 +54,5 @@ overlay:
   bar_width: 20
   bar_margin: 20
   fps_smoothing: 0.1        # weight of the newest frame in the FPS average
+  panel_alpha: 0.6          # darkness of the calibration panel background
+  panel_height: 120

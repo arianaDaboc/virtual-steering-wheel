@@ -28,9 +28,30 @@ def draw_hands(frame: np.ndarray, hands: TwoHands) -> None:
         _mp_draw.draw_landmarks(frame, hand, _connections)
 
 
-def draw_message(frame: np.ndarray, text: str) -> None:
-    """Show a warning line under the HUD."""
-    cv2.putText(frame, text, (10, 55), FONT, 0.7, WARN_RED, 2)
+def draw_message(frame: np.ndarray, text: str, y: int = 55) -> None:
+    """Show a warning line (under the HUD by default)."""
+    cv2.putText(frame, text, (10, y), FONT, 0.7, WARN_RED, 2)
+
+
+def draw_calibration(frame: np.ndarray, step_number: int, step_count: int,
+                     instruction: str, progress: float, message: str,
+                     cfg: Dict[str, Any]) -> None:
+    """Dark panel at the top: step, instruction, hold progress bar, feedback."""
+    h, w = frame.shape[:2]
+    ph = cfg["panel_height"]
+    # darken the top of the frame so the text stays readable on any background
+    top = frame[:ph]
+    top[:] = cv2.addWeighted(top, 1 - cfg["panel_alpha"], np.zeros_like(top), cfg["panel_alpha"], 0)
+
+    cv2.putText(frame, f"CALIBRATION {step_number}/{step_count}", (15, 25), FONT, 0.6, YELLOW, 2)
+    cv2.putText(frame, instruction, (15, 55), FONT, 0.8, WHITE, 2)
+    x0, x1, y = 15, w - 15, 72
+    cv2.rectangle(frame, (x0, y), (x1, y + 14), WHITE, 1)
+    cv2.rectangle(frame, (x0, y), (x0 + int((x1 - x0) * progress), y + 14), GREEN, -1)
+    if message:
+        cv2.putText(frame, message, (15, 108), FONT, 0.6, WARN_RED, 2)
+    else:
+        cv2.putText(frame, "SPACE = skip", (15, 108), FONT, 0.5, WHITE, 1)
 
 
 def _draw_bar(frame: np.ndarray, x: int, bottom: int, value: float,

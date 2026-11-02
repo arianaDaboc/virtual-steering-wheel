@@ -5,6 +5,8 @@ Everything here is pure logic, so it can be tested without a camera.
 import math
 from typing import Optional, Sequence
 
+from calibration import Calibration
+
 
 class OneEuroFilter:
     """Adaptive low-pass filter (Casiez et al., 2012).
@@ -73,7 +75,12 @@ def clamp(value: float, low: float = -1.0, high: float = 1.0) -> float:
 
 
 class SteeringProcessor:
-    """Turns two palm positions into a steering value in [-1, 1]."""
+    """Turns two palm positions into a steering value in [-1, 1].
+
+    Full lock is `max_angle_deg` away from neutral on each side, unless a
+    calibration measured the user's own left/right range. The two sides can
+    differ, because people rarely turn exactly as far both ways.
+    """
 
     def __init__(self, max_angle_deg: float, deadzone: float,
                  min_cutoff: float, beta: float, d_cutoff: float = 1.0) -> None:
@@ -81,14 +88,29 @@ class SteeringProcessor:
         self.deadzone = deadzone
         self.filter = OneEuroFilter(min_cutoff, beta, d_cutoff)
         self.neutral_offset = 0.0
+        self.left_span_deg: Optional[float] = None   # None = use max_angle_deg
+        self.right_span_deg: Optional[float] = None
         self.last_raw_angle: Optional[float] = None
 
     def update(self, left_pt: Sequence[float], right_pt: Sequence[float], t: float) -> float:
         """Process one frame and return the steering value."""
         self.last_raw_angle = steering_angle_deg(left_pt, right_pt)
-        value = clamp((self.last_raw_angle - self.neutral_offset) / self.max_angle_deg)
+        offset = self.last_raw_angle - self.neutral_offset
+        span = self.right_span_deg if offset >= 0 else self.left_span_deg
+        value = clamp(offset / (span or self.max_angle_deg))
         value = self.filter(value, t)
         return apply_deadzone(value, self.deadzone)
+
+    def apply_calibration(self, cal: Calibration) -> None:
+        """Use a measured neutral angle and (if present) the measured lock range."""
+        self.neutral_offset = cal.neutral_deg
+        self.left_span_deg = cal.left_span_deg
+        self.right_span_deg = cal.right_span_deg
+        self.filter.reset()
+
+    def current_calibration(self) -> Calibration:
+        """The calibration in use, ready to be saved."""
+        return Calibration(self.neutral_offset, self.left_span_deg, self.right_span_deg)
 
     def calibrate(self, raw_angle: Optional[float] = None) -> bool:
         """Treat `raw_angle` (default: the last measured angle) as straight ahead.
