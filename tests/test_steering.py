@@ -103,3 +103,19 @@ def test_calibration_offsets_neutral():
 
 def test_calibrate_without_measurement_fails():
     assert make_processor().calibrate() is False
+
+
+# ---- response curve ----
+from steering import response_curve  # noqa: E402
+
+
+def test_response_curve_keeps_ends_and_sign():
+    assert response_curve(1.0, 1.5) == 1.0
+    assert response_curve(-1.0, 1.5) == -1.0
+    assert response_curve(0.0, 1.5) == 0.0
+
+
+def test_response_curve_is_gentler_near_center():
+    assert response_curve(0.5, 1.5) == pytest.approx(0.354, abs=1e-3)
+    assert response_curve(-0.5, 1.5) == pytest.approx(-0.354, abs=1e-3)
+    assert response_curve(0.5, 1.0) == 0.5

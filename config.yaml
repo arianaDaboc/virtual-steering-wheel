@@ -21,6 +21,7 @@ steering:
   min_cutoff: 1.0           # One Euro: lower = smoother but laggier
   beta: 0.02                # One Euro: higher = reacts faster to quick moves
   d_cutoff: 1.0             # One Euro: cutoff for the speed estimate
+  response_exponent: 1.5    # >1 = gentler near the center, full lock unchanged
 
 calibration:
   file: calibration.json    # saved next to main.py; delete it to recalibrate on start
@@ -35,7 +36,7 @@ gestures:
   max_extended_fingers_for_fist: 1
 
 controller:
-  output: auto              # auto (gamepad, then keyboard) | gamepad | keyboard | none
+  output: auto              # auto (gamepad, then keyboard) | gamepad | keyboard | none | game
   auto_throttle: 0.6        # constant throttle while not braking (0..1)
   keyboard:                 # used when output is keyboard, or auto without ViGEmBus
     left: a
@@ -44,6 +45,86 @@ controller:
     brake: s
     steer_threshold: 0.25   # |steer| above this holds the left/right key
     pedal_threshold: 0.5    # throttle/brake above this holds the key
+
+game:                       # built-in 3D test track (--output game)
+  window_title: "Virtual Steering Wheel - test track"
+  fps: 60                   # game redraw rate, independent of the camera
+  width: 1280
+  height: 720
+  preview_width: 300        # camera preview in the top-right corner
+  hud_max_kmh: 200          # full speed bar
+  max_dt: 0.1               # longest frame the physics will simulate at once, s
+  stuck_angle_deg: 100      # facing this far from the road direction...
+  stuck_seconds: 1.0        # ...for this long: put the car back on the road
+
+  view:
+    fov_deg: 62
+    horizon: 0.42           # horizon height as a fraction of the window
+    camera_height: 2.1      # m above the road
+    camera_back: 6.5        # m behind the car
+    camera_yaw_lag: 0.35    # s; the chase camera swings after the car
+    near_clip: 0.6          # m
+    draw_distance: 150      # segments
+    fog_start: 120          # m; fades to the haze color at the draw distance
+    line_distance: 320      # m; lane lines further away are not drawn
+    mountain_parallax: [0.35, 0.6]
+    minimap_size: 170
+    car_width_m: 1.8
+    car_yaw_buckets: 11     # pre-drawn car angles
+    car_max_yaw: 0.6        # rad; the widest angle the car sprite shows
+    smoke_slip: 0.14        # rad of tire slip where smoke starts
+    max_particles: 80
+    start_line_cells: 12
+
+  track:
+    segment_length: 4.0     # m
+    spline_samples: 40      # per control point, before resampling
+    curve_smoothing: 7      # segments each side in the curvature average
+    road_width: 11.0        # m
+    rumble_width: 0.8       # m, red-white curbs (still asphalt)
+    runoff: 25.0            # m of grass before the barrier
+    hills:                  # [height m, waves per lap, phase] summed sine waves
+      - [9.0, 1, 0.0]
+      - [4.0, 3, 1.0]
+      - [2.0, 5, 2.0]
+    scenery:
+      seed: 7
+      post_every: 6         # segments between roadside posts
+      chevron_every: 3
+      chevron_radius: 110   # corners tighter than this get warning signs
+      tree_density: 0.35    # chance of a tree per segment and side
+      tree_min_offset: 6.0  # m beyond the curb
+      tree_max_offset: 40.0
+
+  car:                      # a mid-size rear-wheel-drive road car
+    mass: 1250              # kg
+    yaw_inertia: 1850       # kg m^2
+    cg_to_front: 1.2        # m
+    cg_to_rear: 1.4         # m
+    cg_height: 0.5          # m
+    power: 110000           # W (about 150 hp)
+    max_drive_force: 5500   # N
+    brake_force: 12000      # N, about 1 g
+    brake_front_share: 0.65
+    drag: 0.42              # N/(m/s)^2: 0.5 * air density * Cd * frontal area
+    rolling: 12             # N/(m/s)
+    mu_road: 1.0            # tire grip on asphalt
+    mu_grass: 0.55
+    grass_drag: 150         # N/(m/s)
+    tire_b_front: 9.0       # Pacejka stiffness
+    tire_b_rear: 16.0       # stiffer rear: stable, slight understeer
+    tire_c: 1.5             # Pacejka shape
+    max_steer_deg: 32       # front wheel angle at full lock when stopped
+    steer_speed_ref: 14     # m/s; less lock at speed
+    steer_rate_deg: 120     # deg/s the front wheels can turn
+    traction_control: 0.8   # share of rear grip the engine may use (1.0 = off)
+    steer_assist: 0.9       # steering never asks for more than 90% of grip (0 = off)
+    steer_assist_slip_deg: 5.0  # extra wheel angle allowed: tires need slip to grip
+    esc_gain: 20000         # stability control strength (0 = off)
+    esc_max_moment: 5000    # N m
+    esc_tolerance: 0.05     # rad/s
+    substep: 0.004166667    # s (240 Hz physics)
+    low_speed: 3.0          # m/s; below this use a simple rolling model
 
 overlay:
   window_name: "Virtual Steering Wheel"
@@ -54,5 +135,6 @@ overlay:
   bar_width: 20
   bar_margin: 20
   fps_smoothing: 0.1        # weight of the newest frame in the FPS average
+  camera_wait: 0.5          # s; the OpenCV window still handles keys if the camera stalls
   panel_alpha: 0.6          # darkness of the calibration panel background
   panel_height: 120

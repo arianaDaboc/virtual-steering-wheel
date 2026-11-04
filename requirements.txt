@@ -5,4 +5,5 @@ numpy>=1.24,<2       # mediapipe 0.10.14 is built against NumPy 1.x
 vgamepad>=0.1.0
 pydirectinput>=1.0.4; sys_platform == "win32"   # keyboard fallback
 pyyaml>=6.0
+pygame>=2.5          # built-in test track (--output game)
 pytest>=8.0

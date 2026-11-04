@@ -69,6 +69,15 @@ def apply_deadzone(value: float, deadzone: float) -> float:
     return math.copysign((abs(value) - deadzone) / (1 - deadzone), value)
 
 
+def response_curve(value: float, exponent: float) -> float:
+    """Shape the output: exponent > 1 makes small hand movements gentler.
+
+    With 1.5, half a turn gives 0.35 instead of 0.5, while full lock stays
+    1.0. Hands are not precise, so this makes small corrections easier.
+    """
+    return math.copysign(abs(value) ** exponent, value)
+
+
 def clamp(value: float, low: float = -1.0, high: float = 1.0) -> float:
     """Limit `value` to [low, high]."""
     return max(low, min(high, value))
@@ -83,9 +92,11 @@ class SteeringProcessor:
     """
 
     def __init__(self, max_angle_deg: float, deadzone: float,
-                 min_cutoff: float, beta: float, d_cutoff: float = 1.0) -> None:
+                 min_cutoff: float, beta: float, d_cutoff: float = 1.0,
+                 response_exponent: float = 1.0) -> None:
         self.max_angle_deg = max_angle_deg
         self.deadzone = deadzone
+        self.response_exponent = response_exponent
         self.filter = OneEuroFilter(min_cutoff, beta, d_cutoff)
         self.neutral_offset = 0.0
         self.left_span_deg: Optional[float] = None   # None = use max_angle_deg
@@ -99,7 +110,7 @@ class SteeringProcessor:
         span = self.right_span_deg if offset >= 0 else self.left_span_deg
         value = clamp(offset / (span or self.max_angle_deg))
         value = self.filter(value, t)
-        return apply_deadzone(value, self.deadzone)
+        return response_curve(apply_deadzone(value, self.deadzone), self.response_exponent)
 
     def apply_calibration(self, cal: Calibration) -> None:
         """Use a measured neutral angle and (if present) the measured lock range."""

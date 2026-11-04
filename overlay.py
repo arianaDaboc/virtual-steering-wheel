@@ -62,7 +62,7 @@ def _draw_bar(frame: np.ndarray, x: int, bottom: int, value: float,
 
 
 def draw_hud(frame: np.ndarray, steer: float, throttle: float, brake: float,
-             fps: float, proc_ms: float, status: str,
+             fps: float, latency_ms: float, status: str,
              max_angle_deg: float, cfg: Dict[str, Any]) -> None:
     """Draw the wheel indicator, throttle/brake bars and the status line."""
     h, w = frame.shape[:2]
@@ -79,6 +79,6 @@ def draw_hud(frame: np.ndarray, steer: float, throttle: float, brake: float,
     _draw_bar(frame, margin, bottom, throttle, GREEN, cfg)
     _draw_bar(frame, w - margin - cfg["bar_width"], bottom, brake, RED, cfg)
 
-    # "proc" is processing time only; true end-to-end latency comes with Task 6
-    cv2.putText(frame, f"FPS {fps:4.1f} | proc {proc_ms:4.1f} ms | steer {steer:+.2f} | {status}",
+    # latency = camera read -> controller update, hand tracking included
+    cv2.putText(frame, f"FPS {fps:4.1f} | lat {latency_ms:4.1f} ms | steer {steer:+.2f} | {status}",
                 (10, 25), FONT, 0.55, HUD_GREEN, 2)
