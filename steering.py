@@ -93,8 +93,9 @@ class SteeringProcessor:
 
     def __init__(self, max_angle_deg: float, deadzone: float,
                  min_cutoff: float, beta: float, d_cutoff: float = 1.0,
-                 response_exponent: float = 1.0) -> None:
+                 response_exponent: float = 1.0, gain: float = 1.0) -> None:
         self.max_angle_deg = max_angle_deg
+        self.gain = gain  # full lock at 1/gain of the calibrated turn
         self.deadzone = deadzone
         self.response_exponent = response_exponent
         self.filter = OneEuroFilter(min_cutoff, beta, d_cutoff)
@@ -108,7 +109,9 @@ class SteeringProcessor:
         self.last_raw_angle = steering_angle_deg(left_pt, right_pt)
         offset = self.last_raw_angle - self.neutral_offset
         span = self.right_span_deg if offset >= 0 else self.left_span_deg
-        value = clamp(offset / (span or self.max_angle_deg))
+        # gain > 1: full lock comes before the hands reach the calibrated
+        # maximum, which people rarely turn to while actually driving
+        value = clamp(self.gain * offset / (span or self.max_angle_deg))
         value = self.filter(value, t)
         return response_curve(apply_deadzone(value, self.deadzone), self.response_exponent)
 

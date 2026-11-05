@@ -21,7 +21,8 @@ steering:
   min_cutoff: 1.0           # One Euro: lower = smoother but laggier
   beta: 0.02                # One Euro: higher = reacts faster to quick moves
   d_cutoff: 1.0             # One Euro: cutoff for the speed estimate
-  response_exponent: 1.5    # >1 = gentler near the center, full lock unchanged
+  response_exponent: 1.15   # >1 = gentler near the center, full lock unchanged
+  gain: 1.4                 # full lock at 1/1.4 = 70% of the calibrated turn
 
 calibration:
   file: calibration.json    # saved next to main.py; delete it to recalibrate on start
@@ -56,6 +57,15 @@ game:                       # built-in 3D test track (--output game)
   max_dt: 0.1               # longest frame the physics will simulate at once, s
   stuck_angle_deg: 100      # facing this far from the road direction...
   stuck_seconds: 1.0        # ...for this long: put the car back on the road
+
+  corner_assist:            # brakes for corners automatically; you only steer
+    enabled: true
+    lateral_g: 0.6          # corner speed: about 2/3 of the grip, the rest is for corrections
+    braking_g: 0.7          # plan braking at 0.7 g (the car can do ~1 g)
+    lookahead_m: 220        # how far down the road it looks
+    step_m: 4.0
+    brake_gain: 0.5         # brake per m/s over the limit
+    coast_margin: 1.0       # m/s under the limit where it stops accelerating
 
   view:
     fov_deg: 62
@@ -112,14 +122,13 @@ game:                       # built-in 3D test track (--output game)
     mu_grass: 0.55
     grass_drag: 150         # N/(m/s)
     tire_b_front: 9.0       # Pacejka stiffness
-    tire_b_rear: 16.0       # stiffer rear: stable, slight understeer
+    tire_b_rear: 13.0       # stiffer rear: stable, slight understeer
     tire_c: 1.5             # Pacejka shape
     max_steer_deg: 32       # front wheel angle at full lock when stopped
-    steer_speed_ref: 14     # m/s; less lock at speed
+    steer_speed_ref: 15     # m/s; less lock at speed (only when steer_assist is 0)
     steer_rate_deg: 120     # deg/s the front wheels can turn
     traction_control: 0.8   # share of rear grip the engine may use (1.0 = off)
-    steer_assist: 0.9       # steering never asks for more than 90% of grip (0 = off)
-    steer_assist_slip_deg: 5.0  # extra wheel angle allowed: tires need slip to grip
+    steer_assist: 0.9       # hands ask for a share of grip; full lock = 90% (0 = off)
     esc_gain: 20000         # stability control strength (0 = off)
     esc_max_moment: 5000    # N m
     esc_tolerance: 0.05     # rad/s
