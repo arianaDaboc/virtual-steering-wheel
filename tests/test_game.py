@@ -130,13 +130,24 @@ def test_positive_steer_turns_right(params):
     assert car.r > 0 and car.d > 0
 
 
-def test_cornering_grip_is_about_one_g(params):
-    car = CarState(vx=20)
-    for _ in range(300):  # hold 20 m/s on a steady circle
-        need = params.drag * car.vx ** 2 + params.rolling * car.vx + (20 - car.vx) * 3000
+def steady_lateral_g(params, speed, steer):
+    """Hold `speed` on a steady circle with `steer`; return lateral acceleration in g."""
+    car = CarState(vx=speed)
+    for _ in range(300):
+        need = params.drag * car.vx ** 2 + params.rolling * car.vx + (speed - car.vx) * 3000
         thr = max(0.0, min(1.0, need / min(params.max_drive_force, params.power / car.vx)))
-        step(car, params, FlatRoad(), 0.6, thr, 0, 1 / 60)
-    assert 0.7 < car.vx * car.r / 9.81 < 1.1
+        step(car, params, FlatRoad(), steer, thr, 0, 1 / 60)
+    return car.vx * car.r / 9.81
+
+
+@pytest.mark.parametrize("speed", [15, 25, 35])
+def test_full_hands_use_the_grip_at_any_speed(params, speed):
+    # with the steering assist, full lock means "the tightest turn the tires hold"
+    assert 0.75 < steady_lateral_g(params, speed, 1.0) < 1.05
+
+
+def test_half_hands_give_a_gentler_turn(params):
+    assert 0.2 < steady_lateral_g(params, 25, 0.5) < steady_lateral_g(params, 25, 1.0)
 
 
 def test_car_is_stable_after_a_steering_jab(params):
@@ -189,25 +200,36 @@ def test_assists_stop_a_full_lock_yank_from_spinning(params):
     assert abs(car.r) < 0.05 and car.vx > 20  # back under control, still moving
 
 
-def test_steer_assist_limits_the_wheel_angle_and_can_be_switched_off(params):
+def test_without_assist_steering_lock_shrinks_with_speed(params):
     from dataclasses import replace
     raw = replace(params, steer_assist=0.0, esc_gain=0.0)
-    helped = run(CarState(vx=20), params, FlatRoad(), 1.0, 0.6, 0, 0.3)
-    unhelped = run(CarState(vx=20), raw, FlatRoad(), 1.0, 0.6, 0, 0.3)
-    assert helped.delta < unhelped.delta  # the assist asked the tires for less
+    car = run(CarState(vx=36), raw, FlatRoad(), 1.0, 0.6, 0, 0.3)
+    expected = raw.max_steer_deg / (1 + (car.vx / raw.steer_speed_ref) ** 2)
+    assert math.degrees(car.delta) == pytest.approx(expected, rel=0.05)
+
+
+def test_assist_turn_is_proportional_to_the_hands(params):
+    # half the hands = about half the grip, the same at every speed
+    for speed in (15, 25, 35):
+        half, full = steady_lateral_g(params, speed, 0.5), steady_lateral_g(params, speed, 1.0)
+        assert half == pytest.approx(full / 2, rel=0.1)
 
 
 # ---- the whole track with the player's controls ----
-def test_track_is_drivable_with_auto_throttle_and_fist_brake(track, params):
-    """A simple driver with only steer, fixed 0.6 throttle and on/off brake finishes a clean lap."""
-    car, timer, t, dt = CarState(), LapTimer(len(track.segments)), 0.0, 1 / 30
+def test_track_is_drivable_with_auto_throttle_and_corner_assist(track, params):
+    """A driver that only steers (auto throttle, corner assist, no fist) finishes a clean lap."""
+    from game.assist import apply_corner_assist, corner_speed_limit
+    assist = CFG["corner_assist"]
+    car, timer, t, dt = CarState(), LapTimer(len(track.segments)), 0.0, 1 / 60
     while timer.laps == 0 and t < 200:
-        ahead = max(abs(track.curvature(car.s + k)) for k in range(0, int(30 + car.vx * 3), 4))
-        look = 8 + car.vx * 0.6
-        err = -car.psi + sum(track.curvature(car.s + k) for k in range(0, int(look), 2)) * 2
-        steer = max(-1.0, min(1.0, 1.6 * err - 0.08 * car.d - 0.3 * car.r))
-        brake = 1.0 if car.vx > math.sqrt(0.75 * 9.81 / max(ahead, 1e-4)) else 0.0
-        step(car, params, track, steer, 0.0 if brake else 0.6, brake, dt)
+        ahead = range(0, int(8 + car.vx * 0.6), 2)
+        kappa = sum(track.curvature(car.s + k) for k in ahead) / len(ahead)
+        # steer for the lateral grip the road ahead needs, plus a small correction
+        share = car.vx ** 2 * kappa / 9.81 / params.steer_assist / params.mu_road
+        steer = max(-1.0, min(1.0, share - 2.0 * car.psi - 0.04 * car.d - 0.15 * car.r))
+        throttle, brake = apply_corner_assist(0.6, 0.0, car.vx,
+                                              corner_speed_limit(track, car.s, assist), assist)
+        step(car, params, track, steer, throttle, brake, dt)
         t += dt
         timer.update(track.index(car.s), t, not car.on_grass, car.vx > 0.5)
     assert timer.laps == 1 and timer.last_clean

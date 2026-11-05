@@ -119,3 +119,10 @@ def test_response_curve_is_gentler_near_center():
     assert response_curve(0.5, 1.5) == pytest.approx(0.354, abs=1e-3)
     assert response_curve(-0.5, 1.5) == pytest.approx(-0.354, abs=1e-3)
     assert response_curve(0.5, 1.0) == 0.5
+
+
+def test_gain_reaches_full_lock_earlier():
+    p = make_processor(gain=1.5)
+    # 30 deg is 2/3 of the 45 deg range: with gain 1.5 that is already full lock
+    tilt = ((0, 0), (100, 100 * math.tan(math.radians(30))))
+    assert p.update(*tilt, 0.0) == pytest.approx(1.0)
