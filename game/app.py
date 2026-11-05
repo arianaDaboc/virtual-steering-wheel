@@ -16,6 +16,7 @@ import pygame  # noqa: E402
 
 from controller import Controller  # noqa: E402
 from display import QUIT_KEY  # noqa: E402
+from game.assist import apply_corner_assist, corner_speed_limit
 from game.physics import CarParams, CarState, is_stuck, recover, step  # noqa: E402
 from game.render import Renderer  # noqa: E402
 from game.track import LapTimer, Track, fmt_time  # noqa: E402
@@ -48,6 +49,7 @@ class RacingGame(Controller):
         self.params = CarParams.from_config(cfg["car"])
         self.renderer = Renderer(cfg["view"], self.track, self.size)
         self.inputs = (0.0, 0.0, 0.0)
+        self.applied = (0.0, 0.0, 0.0)
         self._t_last = time.perf_counter()
         self.reset()
 
@@ -78,7 +80,7 @@ class RacingGame(Controller):
             self.fps += 0.05 * (1.0 / (now - self._t_last) - self.fps)  # smoothed for display
         self._t_last = now
         self.update(dt, now)
-        self.renderer.draw(self.screen, self.car, self.cam_psi, self.inputs[2] > 0.1, dt)
+        self.renderer.draw(self.screen, self.car, self.cam_psi, self.applied[2] > 0.1, dt)
         self._draw_hud(frame, large, now)
         pygame.display.flip()
         return key
@@ -86,7 +88,13 @@ class RacingGame(Controller):
     def update(self, dt: float, now: float) -> None:
         """Physics, chase camera, lap timing and spin recovery for one frame."""
         car, cfg = self.car, self.cfg
-        step(car, self.params, self.track, *self.inputs, dt)
+        steer, throttle, brake = self.inputs
+        assist = cfg["corner_assist"]
+        if assist["enabled"]:
+            limit = corner_speed_limit(self.track, car.s, assist)
+            throttle, brake = apply_corner_assist(throttle, brake, car.vx, limit, assist)
+        self.applied = (steer, throttle, brake)  # what the car really gets, for the HUD
+        step(car, self.params, self.track, steer, throttle, brake, dt)
         # the camera swings after the car instead of being glued to it, which
         # is what makes slides visible from behind
         lag = cfg["view"]["camera_yaw_lag"]
@@ -195,7 +203,7 @@ class RacingGame(Controller):
 
     def _draw_inputs(self, x: int, y: int) -> None:
         """Steering (centered) plus throttle and brake bars."""
-        steer, throttle, brake = self.inputs
+        steer, throttle, brake = self.applied  # includes the corner assist
         self._panel((x, y, 250, 76))
         bx, bw = x + 70, 166
         for i, label in enumerate(("Steer", "Gas", "Brake")):

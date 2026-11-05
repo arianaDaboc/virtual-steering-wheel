@@ -46,8 +46,7 @@ class CarParams:
     steer_speed_ref: float    # m/s; lock shrinks with (v/ref)^2 like a real driver's hands
     steer_rate_deg: float     # how fast the wheels can turn, deg/s
     traction_control: float   # share of rear grip the engine may use (1 = off)
-    steer_assist: float       # 0 = off; else max share of grip the steering may ask for
-    steer_assist_slip_deg: float  # extra wheel angle the tires need to build that grip
+    steer_assist: float       # 0 = off; else the share of grip that full lock asks for
     esc_gain: float           # N m per rad/s of excess yaw rate (0 = ESC off)
     esc_max_moment: float     # N m, what braking single wheels can give
     esc_tolerance: float      # rad/s of excess yaw rate before ESC steps in
@@ -93,6 +92,14 @@ def tire_force(alpha: float, peak: float, b: float, c: float) -> float:
     return -peak * math.sin(c * math.atan(b * alpha))
 
 
+def front_slip_for(share: float, p: "CarParams") -> float:
+    """Front slip angle (rad) at which the tire gives `share` (0..1) of its peak force.
+
+    This is tire_force() solved for alpha: share = sin(C * atan(B * alpha)).
+    """
+    return math.tan(math.asin(min(share, 0.999)) / p.tire_c) / p.tire_b_front
+
+
 def _axle_lateral_peak(mu: float, fz: float, fx: float) -> float:
     """Friction circle: grip used for braking/accelerating is not available for turning."""
     total = mu * fz
@@ -119,15 +126,20 @@ def _substep(car: CarState, p: CarParams, track: Track,
     car.on_grass = abs(car.d) > edge
     mu = p.mu_grass if car.on_grass else p.mu_road
 
-    target = steer * math.radians(p.max_steer_deg) / (1 + (vx / p.steer_speed_ref) ** 2)
     if p.steer_assist > 0 and vx > p.low_speed:
-        # steering assist: never ask the tires for more sideways grip than
-        # they have. A turn of radius R at speed v needs v^2/R of grip, and
-        # for a wheel angle delta, R ~ wheelbase / tan(delta).
-        # Tires also need some slip angle to make that force, so allow a
-        # little extra wheel angle on top (`steer_assist_slip`).
-        limit = math.atan(L * p.steer_assist * mu * G / (vx * vx)) + math.radians(p.steer_assist_slip_deg)
-        target = max(-limit, min(limit, target))
+        # steering assist: the hands ask for a share of the front tires' grip
+        # (half a turn = half the grip, full lock = `steer_assist` of it).
+        # The assist points the wheels exactly that slip angle away from
+        # where the front axle is really moving (the tire formula, inverted),
+        # so the car turns as hard as asked and the tires never scrub past
+        # their peak, at any speed.
+        front_dir = math.atan2(car.vy + a * car.r, vx)
+        slip = front_slip_for(min(abs(steer) * p.steer_assist, 0.999), p)
+        max_lock = math.radians(p.max_steer_deg)
+        target = max(-max_lock, min(max_lock, front_dir + math.copysign(slip, steer)))
+    else:
+        # no assist: less lock at speed, the way a driver's hands move less
+        target = steer * math.radians(p.max_steer_deg) / (1 + (vx / p.steer_speed_ref) ** 2)
     max_move = math.radians(p.steer_rate_deg) * h
     car.delta += max(-max_move, min(max_move, target - car.delta))
     delta = car.delta
